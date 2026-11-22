@@ -1,0 +1,3 @@
+global-prefix: '<dark_green>[G]</dark_green>'
+local-prefix: '<gold>[L]</gold>'
+local-radius: 100
