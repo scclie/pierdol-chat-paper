@@ -84,7 +84,6 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onChat(ChatEvent event) {
         boolean local = localPlayers.contains(event.getPlayer().getUniqueId());
-        event.renderer(local ? localRenderer : globalRenderer);
         if (!local) {
             return;
         }
@@ -100,19 +99,27 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         });
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        updatePlayerListName(event.getPlayer());
+        schedulePlayerListNameUpdate(event.getPlayer());
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onChangedWorld(PlayerChangedWorldEvent event) {
-        updatePlayerListName(event.getPlayer());
+        schedulePlayerListNameUpdate(event.getPlayer());
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         localPlayers.remove(event.getPlayer().getUniqueId());
+    }
+
+    private void schedulePlayerListNameUpdate(Player player) {
+        getServer().getScheduler().runTask(this, () -> {
+            if (player.isOnline()) {
+                updatePlayerListName(player);
+            }
+        });
     }
 
     private void updatePlayerListName(Player player) {
