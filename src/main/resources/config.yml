@@ -1,3 +1,7 @@
 global-prefix: '<dark_green>[G]</dark_green>'
 local-prefix: '<gold>[L]</gold>'
 local-radius: 100
+name-formats:
+  overworld: '<gradient:#88c0d0:#a3be8c><name></gradient>'
+  nether: '<gradient:#d08770:#ebcb8b><name></gradient>'
+  end: '<gradient:#b48ead:#81a1c1><name></gradient>'

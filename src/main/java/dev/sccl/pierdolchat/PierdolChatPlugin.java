@@ -18,6 +18,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -25,12 +27,14 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
     private ChatRenderer globalRenderer;
     private ChatRenderer localRenderer;
     private double localRadius;
+    private DimensionNames dimensionNames;
 
     private final Set<UUID> localPlayers = ConcurrentHashMap.newKeySet();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        dimensionNames = new DimensionNames(getConfig(), getLogger());
         MiniMessage miniMessage = MiniMessage.miniMessage();
         globalRenderer = renderer(miniMessage.deserialize(
                 getConfig().getString("global-prefix", "<dark_green>[G]</dark_green>")));
@@ -45,6 +49,7 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         Objects.requireNonNull(getCommand("local")).setExecutor(this);
         Objects.requireNonNull(getCommand("global")).setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getOnlinePlayers().forEach(this::updatePlayerListName);
     }
 
     @Override
@@ -96,14 +101,30 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
     }
 
     @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        updatePlayerListName(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onChangedWorld(PlayerChangedWorldEvent event) {
+        updatePlayerListName(event.getPlayer());
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         localPlayers.remove(event.getPlayer().getUniqueId());
     }
 
-    private static ChatRenderer renderer(Component prefix) {
+    private void updatePlayerListName(Player player) {
+        player.playerListName(dimensionNames.nickname(player.getName(), player.getWorld().getEnvironment()));
+    }
+
+    private ChatRenderer renderer(Component prefix) {
         return ChatRenderer.viewerUnaware((source, sourceDisplayName, message) ->
                 Component.empty().append(prefix)
-                        .append(Component.text(" " + source.getName() + ": ", NamedTextColor.GRAY))
+                        .append(Component.space())
+                        .append(dimensionNames.nickname(source.getName(), source.getWorld().getEnvironment()))
+                        .append(Component.text(": ", NamedTextColor.WHITE))
                         .append(Component.text().color(NamedTextColor.WHITE).append(message).build()));
     }
 }
