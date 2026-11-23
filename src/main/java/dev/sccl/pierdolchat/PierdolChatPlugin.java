@@ -28,6 +28,7 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
     private ChatRenderer localRenderer;
     private double localRadius;
     private DimensionNames dimensionNames;
+    private AddHeadsTabHeads tabHeads;
 
     private final Set<UUID> localPlayers = ConcurrentHashMap.newKeySet();
 
@@ -49,6 +50,7 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         Objects.requireNonNull(getCommand("local")).setExecutor(this);
         Objects.requireNonNull(getCommand("global")).setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
+        tabHeads = AddHeadsTabHeads.create(this, this::updatePlayerListName);
         getServer().getOnlinePlayers().forEach(this::updatePlayerListName);
     }
 
@@ -101,12 +103,12 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        schedulePlayerListNameUpdate(event.getPlayer());
+        updatePlayerListName(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChangedWorld(PlayerChangedWorldEvent event) {
-        schedulePlayerListNameUpdate(event.getPlayer());
+        updatePlayerListName(event.getPlayer());
     }
 
     @EventHandler
@@ -114,16 +116,9 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         localPlayers.remove(event.getPlayer().getUniqueId());
     }
 
-    private void schedulePlayerListNameUpdate(Player player) {
-        getServer().getScheduler().runTask(this, () -> {
-            if (player.isOnline()) {
-                updatePlayerListName(player);
-            }
-        });
-    }
-
     private void updatePlayerListName(Player player) {
-        player.playerListName(dimensionNames.nickname(player.getName(), player.getWorld().getEnvironment()));
+        Component base = dimensionNames.nickname(player.getName(), player.getWorld().getEnvironment());
+        player.playerListName(tabHeads.prepend(player, base));
     }
 
     private ChatRenderer renderer(Component prefix) {
