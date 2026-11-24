@@ -3,9 +3,11 @@ package dev.sccl.pierdolchat;
 import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import io.papermc.paper.event.player.ChatEvent;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -16,6 +18,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
@@ -30,6 +33,10 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
     private DimensionNames dimensionNames;
 
     private final Set<UUID> localPlayers = ConcurrentHashMap.newKeySet();
+    // DiscordSRV defers processing: retain each local decision even after /global.
+    private final Set<Event> localMessages = Collections.synchronizedSet(
+            Collections.newSetFromMap(new WeakHashMap<>()));
+    private Runnable unregisterDiscord;
 
     @Override
     public void onEnable() {
@@ -50,10 +57,16 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         Objects.requireNonNull(getCommand("global")).setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
         getServer().getOnlinePlayers().forEach(this::updatePlayerListName);
+        if (getServer().getPluginManager().isPluginEnabled("DiscordSRV")) {
+            unregisterDiscord = DiscordChatFilter.subscribe(localPlayers, localMessages);
+        }
     }
 
     @Override
     public void onDisable() {
+        if (unregisterDiscord != null) unregisterDiscord.run();
+        unregisterDiscord = null;
+        localMessages.clear();
         localPlayers.clear();
     }
 
@@ -77,8 +90,9 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAsyncChat(AsyncChatEvent event) {
-        event.renderer(localPlayers.contains(event.getPlayer().getUniqueId())
-                ? localRenderer : globalRenderer);
+        boolean local = localPlayers.contains(event.getPlayer().getUniqueId());
+        if (local) localMessages.add(event);
+        event.renderer(local ? localRenderer : globalRenderer);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)

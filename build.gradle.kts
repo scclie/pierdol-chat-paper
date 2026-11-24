@@ -8,10 +8,14 @@ version = providers.gradleProperty("releaseVersion").orElse("1.0.0-SNAPSHOT").ge
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://api.modrinth.com/maven") {
+        content { includeGroup("maven.modrinth") }
+    }
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:26.3.build.253-stable")
+    compileOnly("maven.modrinth:discordsrv:1.30.5")
 }
 
 java {
