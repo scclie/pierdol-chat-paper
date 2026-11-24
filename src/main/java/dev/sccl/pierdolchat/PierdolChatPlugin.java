@@ -28,7 +28,6 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
     private ChatRenderer localRenderer;
     private double localRadius;
     private DimensionNames dimensionNames;
-    private AddHeadsTabHeads tabHeads;
 
     private final Set<UUID> localPlayers = ConcurrentHashMap.newKeySet();
 
@@ -50,7 +49,6 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         Objects.requireNonNull(getCommand("local")).setExecutor(this);
         Objects.requireNonNull(getCommand("global")).setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
-        tabHeads = AddHeadsTabHeads.create(this, this::updatePlayerListName);
         getServer().getOnlinePlayers().forEach(this::updatePlayerListName);
     }
 
@@ -101,7 +99,7 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         });
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onJoin(PlayerJoinEvent event) {
         updatePlayerListName(event.getPlayer());
     }
@@ -118,7 +116,7 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
 
     private void updatePlayerListName(Player player) {
         Component base = dimensionNames.nickname(player.getName(), player.getWorld().getEnvironment());
-        player.playerListName(tabHeads.prepend(player, base));
+        player.playerListName(base);
     }
 
     private ChatRenderer renderer(Component prefix) {
