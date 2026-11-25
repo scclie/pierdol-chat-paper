@@ -2,7 +2,7 @@ name: PierdolChat
 version: '${version}'
 main: dev.sccl.pierdolchat.PierdolChatPlugin
 api-version: '26.3'
-softdepend: [AddHeads, DiscordSRV]
+softdepend: [SkinsRestorer, DiscordSRV, PierdolPlaytime]
 description: In-memory global and nearby local player chat.
 commands:
   local:

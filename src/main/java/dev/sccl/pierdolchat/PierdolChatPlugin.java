@@ -3,6 +3,7 @@ package dev.sccl.pierdolchat;
 import io.papermc.paper.chat.ChatRenderer;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import io.papermc.paper.event.player.ChatEvent;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
@@ -24,13 +25,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class PierdolChatPlugin extends JavaPlugin implements Listener, CommandExecutor {
+    private static final Component AFK_PREFIX = Component.text("⌚ ");
+    private Plugin playtimePlugin;
+    private Method playtimeIsAfk;
     private ChatRenderer globalRenderer;
     private ChatRenderer localRenderer;
     private double localRadius;
     private DimensionNames dimensionNames;
+    private final HeadComponents headComponents = new HeadComponents();
 
     private final Set<UUID> localPlayers = ConcurrentHashMap.newKeySet();
     // DiscordSRV defers processing: retain each local decision even after /global.
@@ -56,7 +62,9 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
         Objects.requireNonNull(getCommand("local")).setExecutor(this);
         Objects.requireNonNull(getCommand("global")).setExecutor(this);
         getServer().getPluginManager().registerEvents(this, this);
-        getServer().getOnlinePlayers().forEach(this::updatePlayerListName);
+        getServer().getOnlinePlayers().forEach(headComponents::refresh);
+        refreshPlayerListNames();
+        getServer().getScheduler().runTaskTimer(this, this::refreshPlayerListNames, 20L, 20L);
         if (getServer().getPluginManager().isPluginEnabled("DiscordSRV")) {
             unregisterDiscord = DiscordChatFilter.subscribe(localPlayers, localMessages);
         }
@@ -115,6 +123,7 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onJoin(PlayerJoinEvent event) {
+        headComponents.refresh(event.getPlayer());
         updatePlayerListName(event.getPlayer());
     }
 
@@ -125,17 +134,54 @@ public final class PierdolChatPlugin extends JavaPlugin implements Listener, Com
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        headComponents.forget(event.getPlayer());
         localPlayers.remove(event.getPlayer().getUniqueId());
+    }
+
+    private boolean isAfk(Player player) {
+        Plugin current = getServer().getPluginManager().getPlugin("PierdolPlaytime");
+        if (current == null || !current.isEnabled()) {
+            playtimePlugin = null;
+            playtimeIsAfk = null;
+            return false;
+        }
+        if (current != playtimePlugin) {
+            playtimePlugin = current;
+            try {
+                playtimeIsAfk = current.getClass().getMethod("isAfk", Player.class);
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                playtimeIsAfk = null;
+            }
+        }
+        if (playtimeIsAfk == null) return false;
+        try {
+            Object result = playtimeIsAfk.invoke(current, player);
+            return result instanceof Boolean afk && afk;
+        } catch (ReflectiveOperationException | RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private void refreshPlayerListNames() {
+        getServer().getOnlinePlayers().forEach(this::updatePlayerListName);
     }
 
     private void updatePlayerListName(Player player) {
         Component base = dimensionNames.nickname(player.getName(), player.getWorld().getEnvironment());
-        player.playerListName(base);
+        Component decoratedName = isAfk(player)
+                ? Component.empty().append(AFK_PREFIX).append(base)
+                : base;
+        Component desired = Component.empty()
+                .append(headComponents.prefix(player))
+                .append(decoratedName);
+        if (!desired.equals(player.playerListName())) {
+            player.playerListName(desired);
+        }
     }
 
     private ChatRenderer renderer(Component prefix) {
         return ChatRenderer.viewerUnaware((source, sourceDisplayName, message) ->
-                Component.empty().append(prefix)
+                Component.empty().append(headComponents.prefix(source)).append(prefix)
                         .append(Component.space())
                         .append(dimensionNames.nickname(source.getName(), source.getWorld().getEnvironment()))
                         .append(Component.text(": ", NamedTextColor.WHITE))
